@@ -1,0 +1,24 @@
+__pycache__/
+*.py[cod]
+*.log
+.DS_Store
+.vscode/
+.idea/
+.venv/
+env/
+build/
+dist/
+
+# Temporal / Python cache
+.mypy_cache/
+.pytest_cache/
+
+# Terraform artifacts
+.terraform/
+terraform.tfstate
+terraform.tfstate.*
+.terraform.lock.hcl
+crash.log
+
+# Local overrides
+*.local
