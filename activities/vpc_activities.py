@@ -114,5 +114,4 @@ async def terraform_output_vpc_activity() -> dict:
         "stage": "output",
         "success": bool(outputs),
         "outputs": outputs,
-        "raw_output": raw_output.strip(),
     }
