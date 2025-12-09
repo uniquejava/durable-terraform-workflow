@@ -3,15 +3,16 @@ from temporalio import activity
 import json
 import re
 from pathlib import Path
-from typing import Union
+from typing import Mapping, Union
 
 
 from utils.cmds import (
     run_tf_init_command,
-    run_tf_plan_command_v2
+    run_tf_plan_with_tfvars,
 )
 
 TERRAFORM_EC2_DIR = Path(__file__).parent.parent / "terraform" / "compute"
+TFVARS_PATH = TERRAFORM_EC2_DIR / "infra.auto.tfvars"
 INIT_SUCCESS_TOKEN = "Terraform has been successfully initialized"
 PLAN_SUMMARY_PATTERN = re.compile(
     r"Plan:\s+(\d+)\s+to add,\s+(\d+)\s+to change,\s+(\d+)\s+to destroy",
@@ -20,29 +21,46 @@ PLAN_SUMMARY_PATTERN = re.compile(
 
 ANSI_ESCAPE_PATTERN = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
 
+
 def _strip_ansi(text: str) -> str:
     return ANSI_ESCAPE_PATTERN.sub("", text)
+
 
 @activity.defn(name="terraform_init_activity")
 async def terraform_init_activity(directory: Union[str, Path] = TERRAFORM_EC2_DIR) -> dict:
     activity.logger.info("Initializing the Terraform init activity")
     raw_output = await run_tf_init_command(directory)
     cleaned = _strip_ansi(raw_output)
-    success = INIT_SUCCESS_TOKEN in cleaned 
+    success = INIT_SUCCESS_TOKEN in cleaned
     return {
         "stage": "init",
         "success": success,
-        "summary":(
+        "summary": (
             "Terraform initialization completed successfully"
             if success
             else "Terraform initialization did not complete successfully"
-        )
+        ),
     }
 
+
 @activity.defn(name="terraform_plan_activity")
-async def terraform_plan_activity(inputs: dict, directory: Union[str, Path] = TERRAFORM_EC2_DIR) -> dict:
-    activity.logger.info("Running a terraform plan to initialize terraform resources")
-    raw_output = await run_tf_plan_command_v2(inputs, directory)
+async def terraform_plan_activity(
+    overrides: Union[Mapping[str, object], None] = None,
+    directory: Union[str, Path] = TERRAFORM_EC2_DIR,
+    tfvars_path: Union[str, Path] = TFVARS_PATH,
+) -> dict:
+    activity.logger.info("Running a terraform plan using %s", tfvars_path)
+    if overrides:
+        activity.logger.info("Applying override vars for plan execution")
+        raw_output = await run_tf_plan_with_tfvars(
+            directory,
+            vars_mapping=overrides,
+        )
+    else:
+        raw_output = await run_tf_plan_with_tfvars(
+            directory,
+            tfvars_path=tfvars_path,
+        )
     cleaned = _strip_ansi(raw_output)
     match = PLAN_SUMMARY_PATTERN.search(cleaned)
     summary = None

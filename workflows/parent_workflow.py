@@ -28,7 +28,7 @@ class ParentWorkflow:
         )
         compute_result = await workflow.execute_child_workflow(
             ComputeWorkflow.run,
-            payload["compute"]["tags"],
+            payload["compute"],
             execution_timeout=timedelta(hours=1),
             run_timeout=timedelta(minutes=30),
             parent_close_policy=ParentClosePolicy.ABANDON,
