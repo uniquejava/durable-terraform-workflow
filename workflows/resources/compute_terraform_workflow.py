@@ -20,15 +20,15 @@ class ComputeWorkflow:
         )
         workflow.logger.info("Plan completed with summary: %s", plan_output.get("summary"))
 
-        # apply_output = await workflow.execute_activity(
-        #     "terraform_apply_activity",
-        #     spec,
-        #     start_to_close_timeout=timedelta(minutes=5),
-        # )
-        # workflow.logger.info("Apply completed with summary: %s", apply_output.get("summary"))
+        apply_output = await workflow.execute_activity(
+            "terraform_apply_activity",
+            spec,
+            start_to_close_timeout=timedelta(minutes=5),
+        )
+        workflow.logger.info("Apply completed with summary: %s", apply_output.get("summary"))
 
         return {
             "init": init_output,
             "plan": plan_output,
-            "apply": "Not completed yet.."
+            "apply": apply_output
         }

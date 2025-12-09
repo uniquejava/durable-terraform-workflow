@@ -16,7 +16,8 @@ from activities.vpc_activities import (
 )
 from activities.terraform_activities import (
     terraform_init_activity,
-    terraform_plan_activity
+    terraform_plan_activity,
+    terraform_apply_activity,
 )
 
 
@@ -36,7 +37,8 @@ async def main() -> None:
             terraform_output_vpc_activity,
             terraform_apply_vpc_activity,
             terraform_init_activity,
-            terraform_plan_activity
+            terraform_plan_activity,
+            terraform_apply_activity,
         ],
     )
 

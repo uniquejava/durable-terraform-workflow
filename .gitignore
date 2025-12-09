@@ -19,7 +19,7 @@ terraform.tfstate
 terraform.tfstate.*
 .terraform.lock.hcl
 crash.log
-.tfvars
+*.tfvars
 
 # Local overrides
 *.local
