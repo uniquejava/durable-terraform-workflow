@@ -58,14 +58,15 @@ async def terraform_plan_activity(
     tfvars_path: Union[str, Path] = TFVARS_PATH,
     overrides: Optional[dict] = None,
 ) -> dict:
-    activity.logger.info("Running a terraform plan in %s", directory)
+    activity.logger.info("在目录 %s 运行 terraform plan", directory)
     if overrides:
-        activity.logger.info("Applying override vars for plan execution")
+        activity.logger.info("使用工作流传入的变量覆盖值执行 plan，忽略 tfvars 文件")
         raw_output = await run_tf_plan_with_tfvars(
             directory,
             vars_mapping=overrides,
         )
     else:
+        activity.logger.info("未提供覆盖值，使用 tfvars 文件 %s 执行 plan", tfvars_path)
         raw_output = await run_tf_plan_with_tfvars(
             directory,
             tfvars_path=tfvars_path or TFVARS_PATH,
@@ -91,14 +92,14 @@ async def terraform_apply_activity(
     directory: Union[str, Path] = TERRAFORM_EC2_DIR,
     tfvars_path: Union[str, Path] = TFVARS_PATH,
 ) -> dict:
-    activity.logger.info("Running a terraform apply using %s", tfvars_path)
     if overrides:
-        activity.logger.info("Applying override vars for apply execution")
+        activity.logger.info("使用工作流传入的变量覆盖值执行 apply，忽略 tfvars 文件")
         raw_output = await run_tf_apply_with_tfvars(
             directory,
             vars_mapping=overrides,
         )
     else:
+        activity.logger.info("未提供覆盖值，使用 tfvars 文件 %s 执行 apply", tfvars_path)
         raw_output = await run_tf_apply_with_tfvars(
             directory,
             tfvars_path=tfvars_path,

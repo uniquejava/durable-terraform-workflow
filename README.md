@@ -1,91 +1,52 @@
-# Durable Terraform Workflow
-Temporal-powered workflows that run Terraform (init/plan/apply) for a simple VPC module and a compute module, plus a recurring drift detector.
+# Durable Terraform Workflow（中文）
+使用 Temporal 运行 Terraform init/plan/apply 的演示，包含 VPC 与 Compute（S3 bucket）两个模块，以及定时漂移检测。
 
-## Table of Contents
-- [What This Is](#what-this-is)
-- [Repo Structure](#repo-structure)
-- [Prerequisites](#prerequisites)
-- [Setup](#setup)
-- [Running the Worker](#running-the-worker)
-- [Triggering Workflows](#triggering-workflows)
-- [Configuration & Inputs](#configuration--inputs)
-- [Terraform Notes](#terraform-notes)
-- [Troubleshooting](#troubleshooting)
+## 目录与组件
+- `workflows/`：父子工作流、漂移检测、worker 与启动脚本。
+- `activities/terraform_activities.py`：调用 Terraform CLI 并解析 plan/apply 结果。
+- `utils/cmds.py`：封装 Terraform init/plan/apply 调用。
+- `terraform/vpc`、`terraform/compute`：示例模块与本地 state/lock（仅演示）。
 
-## What This Is
-- A Temporal worker (`workflows/worker.py`) that exposes workflows to run Terraform against two modules:
-  - `terraform/vpc`: creates a VPC, public subnets, internet gateway, and route table.
-  - `terraform/compute`: creates an example S3 bucket (placeholder for compute resources).
-- Activities in `activities/terraform_activities.py` shell out to `terraform init/plan/apply`, parse summaries, and return structured results.
-- A drift detection workflow polls `terraform plan` on a schedule and logs if changes are detected.
+## 前置
+- Python 3.9+，已安装 uv。
+- Terraform CLI 在 PATH。
+- Temporal 可达（默认 `localhost:7233`，namespace `default`）。
+- 已配置 AWS 凭证与 region（环境变量或 AWS 配置文件）。
 
-## Repo Structure
-- `workflows/` – Temporal workflow definitions:
-  - `parent_workflow.py`: orchestrates VPC then compute child workflows.
-  - `resources/vpc_terraform_workflow.py`, `resources/compute_terraform_workflow.py`: child workflows for each module.
-  - `drift_workflow.py`: recurring plan checks for drift on the VPC module.
-  - `start_workflow.py`, `start_drift_workflow.py`: convenience launchers for local runs.
-  - `worker.py`: starts a Temporal worker that registers workflows and activities.
-- `activities/terraform_activities.py` – Activities that run Terraform CLI commands and parse outputs.
-- `utils/cmds.py` – Helpers to run terraform with optional overrides/tfvars.
-- `terraform/` – Module directories (`vpc/`, `compute/`) and lockfiles/state used for demos.
-- `requirements.txt` – Python dependencies (Temporal SDK).
-
-## Prerequisites
-- Python 3.9+ and `pip`.
-- Terraform CLI installed and on `PATH`.
-- Temporal server reachable at `localhost:7233` (e.g., run `temporal server start-dev` or use Temporal Cloud and update the address/namespace).
-- AWS credentials available in your environment for Terraform to create resources.
-
-## Setup
+## 快速开始（uv）
 ```bash
 cd durable-terraform-workflow
-python -m venv .venv
-source .venv/bin/activate            # Windows: .venv\\Scripts\\activate
-pip install --upgrade pip
-pip install -r requirements.txt
+uv sync
+# 如未运行 Temporal 开发服，可先启动：temporal server start-dev --ui-port 8088
+
+uv run -m workflows.worker                 # 启动 worker，监听队列 MY_TASK_QUEUE
+uv run -m workflows.start_workflow         # 触发父工作流，依次执行 VPC 与 Compute
+uv run -m workflows.start_drift_workflow   # 启动漂移检测循环（对 VPC 周期性 plan）
 ```
 
-## Running the Worker
-Start the Temporal worker so it can execute workflows and activities:
-```bash
-python workflows/worker.py
-```
-It connects to `localhost:7233`, registers workflows/activities, and listens on task queue `MY_TASK_QUEUE`.
+## 配置与输入
+- 工作流入参为 Python dict：
+  - VPC：`{"vpc_cidr": "10.0.0.0/16"}`；模块默认 `10.1.0.0/16`，环境名 `temporal-dev`，AZ `["ap-northeast-1a","ap-northeast-1c"]`。
+  - Compute：`{"tags": {"Name": "dev-instance"}}`，用于 S3 bucket 标签。
+- 优先级：传入的 overrides 最优先；若不传可用 tfvars：
+  - `terraform/vpc/infra.auto.tfvars` 示例：
+    ```hcl
+    vpc_cidr   = "10.0.0.0/16"
+    environment = "temporal-dev"
+    azs         = ["ap-northeast-1a", "ap-northeast-1c"]
+    ```
+  - `terraform/compute/infra.auto.tfvars` 示例：
+    ```hcl
+    tags = { Name = "dev-instance" }
+    ```
 
-## Triggering Workflows
-- **Full VPC + Compute apply** (executes parent workflow):
-  ```bash
-  python workflows/start_workflow.py
-  ```
-  The payload is defined in that script (`infra_config`).
+## Terraform 说明
+- VPC 模块：VPC、公网子网、IGW、路由表。
+- Compute 模块：示例 S3 bucket。
+- 仓库中的本地 state/lock 仅为演示，真实环境建议改为远程状态。
 
-- **Drift detection loop** (repeated plans on the VPC module):
-  ```bash
-  python workflows/start_drift_workflow.py
-  ```
-  Default interval is 1 minute; logs when plan shows add/change/destroy.
-
-If you launch manually via the Temporal SDK/CLI, call `ParentWorkflow.run` or `DriftWorkflow.run` on task queue `MY_TASK_QUEUE` and supply the desired spec dictionaries.
-
-## Configuration & Inputs
-- Workflow inputs are simple Python dicts:
-  - VPC example: `{"vpc_cidr": "10.0.0.0/16"}` (uses defaults for env and AZs if not overridden).
-  - Compute example: `{"tags": {"Name": "dev-instance"}}` (used in the S3 bucket tags).
-- `infra.auto.tfvars` files:
-  - `terraform/compute/infra.auto.tfvars` exists (tags example).
-  - `terraform/vpc/infra.auto.tfvars` is referenced but not committed; create one if you want to supply defaults instead of passing overrides.
-- Update task queue, Temporal target, or inputs in `start_workflow.py` / `start_drift_workflow.py` as needed.
-
-## Terraform Notes
-- Modules are minimal for demo purposes:
-  - VPC module creates a VPC with public subnets and internet gateway.
-  - Compute module currently provisions an S3 bucket named `my-tf-temporal-test-bucket`.
-- State files in `terraform/**/terraform.tfstate` are checked in for illustration; consider removing them and using remote state for real use.
-- Activities parse `terraform` stdout for summaries; if Terraform output format changes, adjust the regex patterns in `activities/terraform_activities.py`.
-
-## Troubleshooting
-- **Terraform not found**: ensure `terraform` is on PATH in the environment where the worker runs.
-- **Temporal connection errors**: verify the server address/namespace in `start_*` scripts and `worker.py`.
-- **AWS auth errors**: export credentials (env vars, profile) before running workflows.
-- **Plan/apply parsing issues**: check worker logs; update regex in `terraform_activities.py` if needed.
+## 常见问题
+- Terraform 找不到：确认 CLI 在 PATH。
+- Temporal 连接失败：检查地址与 namespace 配置。
+- AWS 认证或 region 报错：设置 `AWS_ACCESS_KEY_ID`、`AWS_SECRET_ACCESS_KEY`、`AWS_REGION` 或使用已配置的 profile。
+- 计划/应用解析异常：查看 worker 日志，Terraform 文本格式变化时更新 `activities/terraform_activities.py` 中的正则。

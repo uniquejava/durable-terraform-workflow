@@ -5,11 +5,11 @@ variable "vpc_cidr" {
 
 variable "environment" {
   description = "environment"
-  default = "temporal-dev"
+  default     = "temporal-dev"
 }
 
 variable "azs" {
   description = "List of availability zones in the region"
   type        = list(string)
-  default     = ["us-east-1a", "us-east-1b", "us-east-1c"]
+  default     = ["ap-northeast-1a", "ap-northeast-1c"]
 }
