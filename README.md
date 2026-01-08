@@ -1,5 +1,7 @@
-# Durable Terraform Workflow（中文）
+# Durable Terraform Workflow
 使用 Temporal 运行 Terraform init/plan/apply 的演示，包含 VPC 与 Compute（S3 bucket）两个模块，以及定时漂移检测。
+
+YT视频: https://www.youtube.com/watch?v=L8crQ_Elyh0
 
 ## 目录与组件
 - `workflows/`：父子工作流、漂移检测、worker 与启动脚本。
